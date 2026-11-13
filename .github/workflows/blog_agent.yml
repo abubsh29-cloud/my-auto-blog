@@ -20,7 +20,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install groq
+        run: pip install --break-system-packages groq
 
       - name: Run Blog Agent
         env:
