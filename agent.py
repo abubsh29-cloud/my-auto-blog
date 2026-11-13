@@ -16,7 +16,7 @@ try:
   rss_url = "https://news.ycombinator.com/rss"
   req = urllib.request.Request(rss_url, headers={"User-Agent": "Mozilla/5.0"})
 
-  topic = "The Future of Artificial Intelligence"  # Default fallback headline
+  topic = "The Future of Artificial Intelligence"
   try:
     with urllib.request.urlopen(req) as response:
       xml_data = response.read()
@@ -27,7 +27,6 @@ try:
         if item.find("title") is not None and item.find("title").text
     ]
     if titles:
-      # Pick a headline based on the day of the year
       day_index = datetime.datetime.now().timetuple().tm_yday % len(titles)
       topic = titles[day_index]
   except Exception as rss_err:
@@ -63,31 +62,30 @@ try:
 
   blog_content = completion.choices[0].message.content
 
-  # Generate a free header image URL based on the live headline
+  # Generate header image
   encoded_topic = urllib.parse.quote(topic)
   image_url = f"https://image.pollinations.ai/prompt/{encoded_topic}"
   header_image_markdown = f"![Header Image]({image_url})\n\n"
 
-  full_content = header_image_markdown + blog_content
-  print("Header image and content combined successfully!")
+  # Create Jekyll Front Matter so the theme recognizes the post title and date
+  today_str = datetime.date.today().isoformat()
+  front_matter = (
+      "---\nlayout: post\ntitle: \""
+      + topic.replace('"', '\\"')
+      + f'"\ndate: {today_str} 09:00:00 +0000\n---\n\n'
+  )
 
-  # Create a clean URL-friendly filename (capped at 50 chars for safety)
+  full_content = front_matter + header_image_markdown + blog_content
+  print("Jekyll front matter and header image added successfully!")
+
+  # Jekyll requires posts to be in the _posts folder with format YYYY-MM-DD-title.md
   slug = re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-")[:50]
-  filename = f"posts/{datetime.date.today()}-{slug}.md"
+  filename = f"_posts/{today_str}-{slug}.md"
 
-  os.makedirs("posts", exist_ok=True)
+  os.makedirs("_posts", exist_ok=True)
   with open(filename, "w", encoding="utf-8") as f:
     f.write(full_content)
   print(f"Saved post to {filename}")
-
-  # Update README.md so visitors see a list of your latest posts
-  posts = sorted(os.listdir("posts"), reverse=True)
-  with open("README.md", "w", encoding="utf-8") as f:
-    f.write("# My Automated AI Blog\n\n### Latest Posts\n")
-    for post in posts:
-      if post.endswith(".md"):
-        f.write(f"- [{post[:-3]}](posts/{post})\n")
-  print("Updated README.md successfully!")
 
 except Exception as e:
   print(f"CRITICAL ERROR: {e}")
