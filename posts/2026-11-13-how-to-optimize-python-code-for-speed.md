@@ -1,201 +1,217 @@
 # How to Optimize Python Code for Speed  
-*Because “It works” isn’t always “It’s fast”*
+*Because every millisecond counts in production*
+
+> **TL;DR** –  
+> 1. **Profile first** – know where the bottlenecks are.  
+> 2. **Choose the right algorithm** – complexity matters.  
+> 3. **Leverage built‑ins & libraries** – they’re written in C.  
+> 4. **Use fast data structures** – `array`, `deque`, `numpy`.  
+> 5. **Parallelise wisely** – threads for I/O, processes for CPU.  
+> 6. **Consider JIT or C extensions** – PyPy, Cython, Numba, or CFFI.  
+> 7. **Keep it readable** – micro‑optimisations should be justified.
 
 ---
 
-## Introduction
+## 1. Start with a Profiler
 
-Python is the Swiss‑Army knife of programming: expressive, readable, and packed with libraries. But when you start building data‑intensive apps, machine‑learning pipelines, or real‑time services, the *“works”* part can turn into a *“slow‑as‑snail”* nightmare.  
-
-Speed‑optimizing Python isn’t just about shaving milliseconds off a loop; it’s about making the right trade‑offs, choosing the right tool for the job, and knowing when to stop micro‑optimizing and focus on the algorithm itself.  
-
-In this post we’ll walk through a practical, step‑by‑step guide that takes you from a sluggish script to a lean, mean, Python‑powered machine. Grab your coffee, and let’s get those lines of code sprinting!
-
----
-
-## 1. Start with the Right Tool
-
-| Tool | What it does | When to use it |
-|------|--------------|----------------|
-| **cProfile / timeit** | Profiling and timing | **Always** – before you tweak anything |
-| **PyPy** | JIT‑compiled Python | When you can’t rewrite the algorithm |
-| **Cython / Numba** | Compile‑to‑C extensions | For tight loops that need speed |
-| **NumPy / Pandas** | Vectorized operations | For numeric / tabular data |
-| **AsyncIO / multiprocessing / concurrent.futures** | Concurrency | For I/O‑bound or CPU‑bound parallelism |
-
-> **Pro Tip**: *Profile first, optimize later.*  
-> Without a baseline you’ll be guessing what to improve.
-
----
-
-## 2. Profile Before You Optimize
+Before you start micro‑optimising, you need to know *where* to focus your energy. Python ships with a built‑in profiler, `cProfile`, that gives you a quick view of which functions consume the most time.
 
 ```bash
-# Quick one‑liner with timeit
-python -m timeit -s "data = range(1000000)" "sum(data)"
-
-# Full profile with cProfile
-python -m cProfile -o myapp.prof myapp.py
+python -m cProfile -o prof.txt my_script.py
 ```
 
-Open the `.prof` file with `snakeviz` or `gprof2dot` to see where the time is actually spent.  
-**Common culprits**:  
-- Large data copies  
-- Repeated attribute lookups  
-- Unnecessary function calls
+Then visualise it with `snakeviz`:
 
-> **Rule of Thumb**: *If a function takes < 0.1 % of the runtime, don’t bother optimizing it.*
+```bash
+pip install snakeviz
+snakeviz prof.txt
+```
+
+Look for functions that dominate the total runtime. Those are your prime candidates for optimization.
+
+> **Pro tip:** Use `line_profiler` for line‑by‑line granularity. Install with `pip install line_profiler` and decorate the functions you want to inspect.
 
 ---
 
-## 3. Algorithmic Over Micro‑Optimizations
+## 2. Choose the Right Algorithm
 
-A 100‑line Python script can be 10× faster simply by swapping a nested loop for a dictionary lookup.  
-**Don’t** spend hours tweaking a loop if the algorithm itself is suboptimal.
+Speed often comes from selecting a better algorithm rather than tweaking code.
 
-| Problem | Pythonic Fix | Complexity |
-|---------|--------------|------------|
-| O(n²) bubble sort | `sorted()` or `list.sort()` | O(n log n) |
-| Repeated expensive calculations | `functools.lru_cache` | O(1) amortized |
-| Linear search in a list | `set` membership | O(1) |
+| Task | Naïve Python | Optimised |
+|------|--------------|-----------|
+| Matrix multiplication | Nested loops | `numpy.dot()` |
+| Searching | Linear scan | Binary search (`bisect`) |
+| Sorting | `list.sort()` (Timsort) | Already optimal for Python lists |
+| Graph traversal | DFS with recursion | Iterative stack or `networkx` (C‑optimised) |
 
-```python
-# Bad
-def is_prime(n):
-    for i in range(2, n):
-        if n % i == 0:
-            return False
-    return True
-
-# Good
-def is_prime(n):
-    if n < 2:
-        return False
-    if n in (2, 3):
-        return True
-    if n % 2 == 0 or n % 3 == 0:
-        return False
-    i = 5
-    while i * i <= n:
-        if n % i == 0 or n % (i + 2) == 0:
-            return False
-        i += 6
-    return True
-```
-
----
-
-## 4. Leverage Python’s Built‑In Power
-
-| Built‑in | Why it’s faster | Example |
-|----------|-----------------|---------|
-| `sum()` | Uses C loop, no Python overhead | `sum(numbers)` |
-| `join()` | One allocation for concatenation | `''.join(words)` |
-| `enumerate()` | Local variable lookup | `for i, v in enumerate(lst):` |
-| `itertools` | Lazy generators, C‑level | `itertools.chain(*lists)` |
-| `collections` | Optimized containers | `deque`, `defaultdict` |
-
-### Example: String Concatenation
+**Example:** Replacing a slow loop that sums squares with NumPy:
 
 ```python
 # Slow
-s = ''
-for part in parts:
-    s += part
+total = 0
+for x in data:
+    total += x * x
 
 # Fast
-s = ''.join(parts)
+import numpy as np
+total = np.dot(data, data)
 ```
 
 ---
 
-## 5. Speed Up with Libraries
+## 3. Use Built‑ins and Standard Library
 
-### 5.1 NumPy for Vectorized Math
+Python’s built‑ins are implemented in C, so they’re usually faster than equivalent Python code.
+
+| Python | Equivalent Python | Equivalent C‑backed |
+|--------|-------------------|---------------------|
+| `sum()` | manual loop | `sum()` |
+| `max()` | loop | `max()` |
+| `sorted()` | custom sort | `sorted()` |
+| `itertools` | manual loops | `itertools` |
+
+**Example:** Generating a list of squares:
 
 ```python
-import numpy as np
-a = np.arange(1_000_000)
-b = np.sqrt(a)            # Vectorized, no Python loop
+# Manual
+squares = []
+for i in range(10_000):
+    squares.append(i * i)
+
+# Built‑in
+squares = [i * i for i in range(10_000)]
+# or
+squares = list(map(lambda i: i * i, range(10_000)))
 ```
 
-### 5.2 Pandas for DataFrames
+The list comprehension is typically faster than `map` with a lambda.
+
+---
+
+## 4. Pick the Right Data Structures
+
+Python offers several containers that are optimised for specific patterns.
+
+| Need | Recommended |
+|------|-------------|
+| Fast append/pop from end | `list` |
+| Fast append/pop from both ends | `collections.deque` |
+| Random access and numeric operations | `array.array` or `numpy.ndarray` |
+| Sparse data | `scipy.sparse` |
+
+**Deque vs List**
 
 ```python
-df = pd.read_csv('bigdata.csv')
-df['new_col'] = df['col1'] + df['col2']  # Internally uses NumPy
+from collections import deque
+
+dq = deque()
+dq.append(1)
+dq.appendleft(0)   # O(1) vs O(n) on list
 ```
 
-### 5.3 Cython for Tight Loops
+---
+
+## 5. Parallelise Where Appropriate
+
+Python’s Global Interpreter Lock (GIL) limits CPU‑bound threading, but you can still speed things up:
+
+- **I/O bound**: Use `threading` or `asyncio`.
+- **CPU bound**: Use `multiprocessing` or `concurrent.futures.ProcessPoolExecutor`.
+- **Vectorised operations**: Use NumPy, Pandas, or Dask.
+
+```python
+from concurrent.futures import ProcessPoolExecutor
+
+def heavy_computation(x):
+    # CPU‑intensive work
+    return sum(i * i for i in range(x))
+
+with ProcessPoolExecutor() as pool:
+    results = pool.map(heavy_computation, [10_000, 20_000, 30_000])
+```
+
+---
+
+## 6. Just‑In‑Time (JIT) and C Extensions
+
+If pure Python still can’t keep up, consider a JIT or compile part of the code to C.
+
+### PyPy
+
+PyPy is a drop‑in replacement for CPython with a JIT compiler. For many workloads, you’ll see 2–5× speedups.
+
+```bash
+pypy my_script.py
+```
+
+### Cython
+
+Convert hot functions to C:
 
 ```cython
-# cython: boundscheck=False, wraparound=False
-def sum_of_squares(int n):
-    cdef int i, total = 0
-    for i in range(n):
-        total += i * i
-    return total
+# hello.pyx
+cdef int add(int a, int b):
+    return a + b
 ```
 
-Compile with `cythonize` and `setup.py`.
+Compile with `cythonize -i hello.pyx`.
 
----
+### Numba
 
-## 6. Make the Most of JIT and C Extensions
-
-| Approach | When to Use | Pros | Cons |
-|----------|-------------|------|------|
-| **PyPy** | Pure Python code | 2–5× speed, no changes | Limited CPython C‑extension compatibility |
-| **Numba** | NumPy‑heavy loops | Compile‑to‑LLVM, no C | Requires NumPy, limited Python features |
-| **Cython** | Custom C logic | Full control | Requires `.pyx` files and compilation |
-| **Rust/C++ extensions** | Critical hot spots | Highest performance | Extra language learning curve |
+Decorator‑based JIT for numeric code:
 
 ```python
-# Numba example
 from numba import jit
 
 @jit(nopython=True)
 def dot_product(a, b):
-    return sum(x*y for x, y in zip(a, b))
+    return sum(a[i] * b[i] for i in range(len(a)))
 ```
+
+### CFFI / ctypes
+
+Wrap existing C libraries when you need ultimate performance.
 
 ---
 
-## 7. Parallelism & Asynchrony
+## 7. Avoid Common Pitfalls
 
-| Technique | Use‑Case | Notes |
-|-----------|----------|-------|
-| `multiprocessing.Pool` | CPU‑bound | Spawns processes, avoids GIL |
-| `concurrent.futures.ThreadPoolExecutor` | I/O‑bound | Lightweight threads |
-| `asyncio` | Network I/O, async APIs | Requires async‑compatible code |
-| `joblib` | Parallel loops | Easy to use with `delayed` |
+| Pitfall | What to avoid |
+|---------|---------------|
+| Global variables in loops | Use local variables; lookups are faster. |
+| Repeated attribute access | Cache `obj.attr` to a local variable. |
+| Using `*args`/`**kwargs` inside tight loops | Unpack once outside the loop. |
+| Unnecessary list copies | Prefer generator expressions or `itertools`. |
+| String concatenation in loops | Use `''.join()` or `io.StringIO`. |
 
-```python
-from concurrent.futures import ThreadPoolExecutor
-
-def fetch(url):
-    return requests.get(url).text
-
-with ThreadPoolExecutor(max_workers=10) as ex:
-    results = list(ex.map(fetch, urls))
-```
-
-> **Tip**: For CPU‑bound work, `multiprocessing` beats `threading` because of the Global Interpreter Lock (GIL).
-
----
-
-## 8. Avoid Common Pitfalls
-
-| Pitfall | Why it hurts | Fix |
-|---------|--------------|-----|
-| Global variable lookups | Indirect access | Use local variables |
-| Re‑creating objects in loops | GC overhead | Pre‑allocate or reuse |
-| Unnecessary list copies | Memory bandwidth | Use iterators, generators |
-| Over‑use of `eval`/`exec` | Security + speed | Avoid, use safer alternatives |
-| Mixing Python and C types | Type conversions | Stick to one type family |
+**Example:**
 
 ```python
 # Bad
-def count_occurrences(lst, target):
-    count = 0
-    for i in range
+for i in range(len(arr)):
+    total += arr[i] * arr[i]
+
+# Good
+arr_local = arr  # local variable
+total = 0
+for x in arr_local:
+    total += x * x
+```
+
+---
+
+## 8. Measure, Iterate, Repeat
+
+Optimization is an iterative process. After each tweak, re‑profile to confirm the improvement. Remember:
+
+- **Micro‑optimisation** should only be applied when profiling shows a real benefit.
+- **Readability** is still paramount. A tiny speed gain is not worth unreadable code.
+- **Maintainability**: Document your optimisations for future developers (including your future self).
+
+---
+
+## Conclusion
+
+Speeding up Python code isn’t just about writing clever loops; it’s about smart choices at every level—from algorithm selection to data structures, from built‑ins to JIT compilers. Start with profiling to identify real bottlenecks, then apply the right optimisation technique. Keep the code readable, test thoroughly, and you’ll enjoy a faster, cleaner, and more maintainable codebase.
+
+Happy coding—and may your Python run at lightning speed! 🚀
