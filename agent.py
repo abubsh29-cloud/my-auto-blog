@@ -12,35 +12,27 @@ if not api_key:
   exit(1)
 
 try:
-  print("Fetching trending tech headlines from RSS feed...")
-  # Pulling live headlines from Hacker News RSS feed
+  print("Fetching latest tech headline from Hacker News RSS...")
   rss_url = "https://news.ycombinator.com/rss"
   req = urllib.request.Request(rss_url, headers={"User-Agent": "Mozilla/5.0"})
 
-  topics = []
+  topic = "The Future of Artificial Intelligence"  # Default fallback headline
   try:
     with urllib.request.urlopen(req) as response:
       xml_data = response.read()
-      root = ET.fromstring(xml_data)
-      for item in root.findall(".//item"):
-        title = item.find("title")
-        if title is not None and title.text:
-          topics.append(title.text)
-  except Exception as e:
-    print(f"Warning: Could not fetch RSS feed ({e}), using fallback topics.")
-
-  # Fallback topics if RSS fetch fails
-  if not topics:
-    topics = [
-        "The Future of Renewable Energy",
-        "How to Optimize Python Code for Speed",
-        "Top 5 Trends in AI Agents",
-        "Beginner Guide to Serverless Computing",
+    root = ET.fromstring(xml_data)
+    titles = [
+        item.find("title").text
+        for item in root.findall(".//item")
+        if item.find("title") is not None and item.find("title").text
     ]
+    if titles:
+      # Pick a headline based on the day of the year
+      day_index = datetime.datetime.now().timetuple().tm_yday % len(titles)
+      topic = titles[day_index]
+  except Exception as rss_err:
+    print(f"Could not fetch RSS feed, using default topic. Error: {rss_err}")
 
-  # Pick a topic based on the day of the year
-  day_index = datetime.datetime.now().timetuple().tm_yday % len(topics)
-  topic = topics[day_index]
   print(f"Selected live topic: {topic}")
 
   print("Initializing Groq client...")
@@ -55,14 +47,14 @@ try:
               "content": (
                   "You are an expert tech blogger. Write an engaging blog post in"
                   " clean Markdown format with a title, intro, subheadings, and"
-                  " conclusion based on the given topic."
+                  " conclusion based on the provided headline."
               ),
           },
           {
               "role": "user",
               "content": (
-                  f"Write an in-depth, professional blog post inspired by this"
-                  f" headline/topic: {topic}"
+                  f"Write a detailed blog post about this trending topic:"
+                  f" {topic}"
               ),
           },
       ],
@@ -71,15 +63,15 @@ try:
 
   blog_content = completion.choices[0].message.content
 
-  # Generate a free header image URL based on the topic
+  # Generate a free header image URL based on the live headline
   encoded_topic = urllib.parse.quote(topic)
   image_url = f"https://image.pollinations.ai/prompt/{encoded_topic}"
   header_image_markdown = f"![Header Image]({image_url})\n\n"
 
   full_content = header_image_markdown + blog_content
-  print("Header image added successfully!")
+  print("Header image and content combined successfully!")
 
-  # Create a clean URL-friendly filename (trimmed to avoid long filenames)
+  # Create a clean URL-friendly filename (capped at 50 chars for safety)
   slug = re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-")[:50]
   filename = f"posts/{datetime.date.today()}-{slug}.md"
 
@@ -90,4 +82,13 @@ try:
 
   # Update README.md so visitors see a list of your latest posts
   posts = sorted(os.listdir("posts"), reverse=True)
-  with open("README.md", "w",
+  with open("README.md", "w", encoding="utf-8") as f:
+    f.write("# My Automated AI Blog\n\n### Latest Posts\n")
+    for post in posts:
+      if post.endswith(".md"):
+        f.write(f"- [{post[:-3]}](posts/{post})\n")
+  print("Updated README.md successfully!")
+
+except Exception as e:
+  print(f"CRITICAL ERROR: {e}")
+  raise e
