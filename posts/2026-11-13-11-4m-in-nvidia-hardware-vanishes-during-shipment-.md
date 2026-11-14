@@ -107,4 +107,4 @@ The disappearance of $11.4 million in Nvidia hardware isn’t just a headline�
 - Download our free whitepaper, *“Securing High‑Value Tech Shipments: A Practical Guide.”*  
 - Join the conversation on LinkedIn: #TechSupplyChainSecurity
 
-*—* **[Your Name]** – Tech Blogger & Supply‑Chain Enthusiast*
+*—* **[BK]** – Tech Blogger & Supply‑Chain Enthusiast*
