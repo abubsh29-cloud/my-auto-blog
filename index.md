@@ -14,12 +14,13 @@ title: TechPulse AI - Newsroom
       <a href="{{ hero.url | relative_url }}" style="text-decoration: none; color: #111;">{{ hero.title }}</a>
     </h1>
     <p style="color: #666; font-size: 0.85rem; margin-bottom: 1rem;">📅 {{ hero.date | date: "%B %d, %Y" }}</p>
-    <p style="color: #333; font-size: 1.05rem; line-height: 1.6;">{{ hero.excerpt }}</p>
+    <p style="color: #333; font-size: 1.05rem; line-height: 1.6;">{{ hero.content | strip_html | truncatewords: 45 }}</p>
     <a href="{{ hero.url | relative_url }}" style="font-weight: bold; color: #cc0000; text-decoration: none; display: inline-block; margin-top: 0.5rem;">Read Full Story &rarr;</a>
   </div>
   {% endif %}
 
   <!-- NEWS GRID SECTION FOR RECENT ARTICLES -->
+  {% if site.posts.size > 1 %}
   <h3 style="border-left: 4px solid #cc0000; padding-left: 10px; margin-bottom: 1.5rem; text-transform: uppercase; font-size: 1.1rem; letter-spacing: 0.5px; color: #111;">Latest Headlines</h3>
   
   <div class="news-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 3rem;">
@@ -32,12 +33,13 @@ title: TechPulse AI - Newsroom
             <a href="{{ post.url | relative_url }}" style="text-decoration: none; color: #111;">{{ post.title }}</a>
           </h4>
           <p style="color: #666; font-size: 0.8rem; margin-bottom: 0.8rem;">{{ post.date | date: "%b %d, %Y" }}</p>
-          <p style="color: #444; font-size: 0.9rem; line-height: 1.4;">{{ post.excerpt | strip_html | truncate: 90 }}</p>
+          <p style="color: #444; font-size: 0.9rem; line-height: 1.4;">{{ post.content | strip_html | truncatewords: 20 }}</p>
         </div>
         <a href="{{ post.url | relative_url }}" style="font-size: 0.85rem; font-weight: bold; color: #cc0000; text-decoration: none; margin-top: 1rem;">Read More &rarr;</a>
       </div>
     {% endfor %}
   </div>
+  {% endif %}
 
   <!-- MORE HEADLINES / ARCHIVE TICKER -->
   {% if site.posts.size > 5 %}
