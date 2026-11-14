@@ -2,6 +2,12 @@ title: "TechPulse AI"
 description: "Daily insights on artificial intelligence, software engineering, and emerging tech."
 author: "Bk"
 
+# Fix broken links for GitHub Pages project site
+baseurl: "/my-auto-blog"
+url: "https://abubsh29-cloud.github.io"
+future: true
+
 # Theme settings
 theme: minima
 show_excerpts: true
+
