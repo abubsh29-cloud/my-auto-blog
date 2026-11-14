@@ -1,3 +1,7 @@
-title: "My Automated AI Blog"
-description: "An autonomous AI blog powered by Groq and GitHub Actions."
+title: "TechPulse AI"
+description: "Daily insights on artificial intelligence, software engineering, and emerging tech."
+author: "Bk"
+
+# Theme settings
 theme: minima
+show_excerpts: true
